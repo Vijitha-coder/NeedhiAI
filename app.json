@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "NeedhiAI",
+    "slug": "needhiai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "needhiai",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a1e3a"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.needhiai.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a1e3a"
+      },
+      "package": "com.needhiai.app"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-asset"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
