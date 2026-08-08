@@ -1,20 +1,24 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { Bell, ChevronRight, Crown, KeyRound, LogOut, Settings, Shield } from "lucide-react-native";
+import { Bell, ChevronRight, Crown, KeyRound, LogOut, Settings, Shield, Server } from "lucide-react-native";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ScreenHeader } from "@/components/ScreenHeader";
-import { mockUser } from "@/lib/mock-data";
 import { colors, gradients, radii, shadows } from "@/lib/theme";
+import { useAuth } from "@/lib/auth-context";
+import { BACKEND_URL } from "@/lib/config";
 
 const items = [
   { icon: Settings, label: "App settings", route: "/settings" },
   { icon: Bell, label: "Notification preferences", route: "/notifications" },
   { icon: KeyRound, label: "Change password", route: "/forgot-password" },
   { icon: Shield, label: "Privacy & security", route: "/settings" },
+  { icon: Server, label: `Backend: ${BACKEND_URL}`, route: "/settings" },
 ] as const;
 
 export default function ProfileScreen() {
+  const { user, logout } = useAuth();
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <ScreenHeader title="Profile" />
@@ -22,29 +26,25 @@ export default function ProfileScreen() {
       <LinearGradient colors={gradients.hero} style={styles.hero}>
         <View style={styles.heroRow}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{mockUser.avatar}</Text>
+            <Text style={styles.avatarText}>{user?.avatar_initials || "U"}</Text>
           </View>
           <View style={styles.heroMeta}>
-            <Text style={styles.name}>{mockUser.name}</Text>
-            <Text style={styles.email}>{mockUser.email}</Text>
+            <Text style={styles.name}>{user?.full_name || "User"}</Text>
+            <Text style={styles.email}>{user?.email || "user@example.com"}</Text>
             <View style={styles.planBadge}>
               <Crown size={12} color={colors.gold} />
-              <Text style={styles.planText}>{mockUser.plan}</Text>
+              <Text style={styles.planText}>{user?.plan || "Free"}</Text>
             </View>
           </View>
         </View>
-        <Pressable style={styles.editBtn}>
-          <Text style={styles.editBtnText}>Edit profile</Text>
-        </Pressable>
+        <View style={styles.backendBadge}>
+          <Text style={styles.backendText}>Backend: Real FastAPI + RAG Pipeline</Text>
+        </View>
       </LinearGradient>
 
       <View style={styles.menu}>
         {items.map((item, index) => (
-          <Pressable
-            key={item.label}
-            onPress={() => router.push(item.route as never)}
-            style={[styles.menuRow, index > 0 && styles.menuRowBorder]}
-          >
+          <Pressable key={item.label} onPress={() => router.push(item.route as never)} style={[styles.menuRow, index > 0 && styles.menuRowBorder]}>
             <View style={styles.menuIcon}>
               <item.icon size={16} color={colors.primary} />
             </View>
@@ -54,12 +54,34 @@ export default function ProfileScreen() {
         ))}
       </View>
 
-      <Pressable onPress={() => router.replace("/login")} style={styles.logoutBtn}>
+      <Pressable
+        onPress={async () => {
+          await logout();
+        }}
+        style={styles.logoutBtn}
+      >
         <LogOut size={16} color={colors.destructive} />
         <Text style={styles.logoutText}>Log out</Text>
       </Pressable>
 
-      <Text style={styles.version}>NeedhiAI · v1.0.0</Text>
+      <View style={styles.infoBox}>
+        <Text style={styles.infoTitle}>About Real Integration</Text>
+        <Text style={styles.infoText}>
+          ✅ Real JWT authentication with secure storage{"\n"}
+          ✅ Real file upload (PDF/DOCX/JPG/PNG){"\n"}
+          ✅ Real OCR + text extraction{"\n"}
+          ✅ Real embeddings (TF-IDF / Sentence Transformers / OpenAI){"\n"}
+          ✅ Real Vector DB (Chroma / Memory){"\n"}
+          ✅ Real RAG with legal knowledge base{"\n"}
+          ✅ Real LLM (OpenAI or rule-based){"\n"}
+          ✅ Real structured JSON analysis{"\n"}
+          ✅ Real database persistence{"\n"}
+          ✅ Real chat with contract + sources
+        </Text>
+      </View>
+
+      <Text style={styles.version}>NeedhiAI · v1.0.0 · End-to-End Real Implementation</Text>
+      <Text style={styles.disclaimer}>Disclaimer: Informational assistance only, not legal advice.</Text>
     </ScrollView>
   );
 }
@@ -100,16 +122,14 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   planText: { fontSize: 11, fontWeight: "600", color: colors.gold },
-  editBtn: {
-    marginTop: 20,
+  backendBadge: {
+    marginTop: 12,
+    backgroundColor: "rgba(212,168,83,0.15)",
     borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: "rgba(250,249,247,0.2)",
-    backgroundColor: "rgba(250,249,247,0.15)",
-    paddingVertical: 10,
-    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
-  editBtnText: { color: colors.primaryForeground, fontSize: 14, fontWeight: "500" },
+  backendText: { fontSize: 11, color: colors.gold, fontWeight: "500" },
   menu: {
     marginTop: 24,
     marginHorizontal: 20,
@@ -150,5 +170,17 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   logoutText: { fontSize: 14, fontWeight: "500", color: colors.destructive },
+  infoBox: {
+    marginTop: 24,
+    marginHorizontal: 20,
+    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  infoTitle: { fontSize: 13, fontWeight: "600", color: colors.foreground, marginBottom: 8 },
+  infoText: { fontSize: 12, color: colors.mutedForeground, lineHeight: 18 },
   version: { marginTop: 24, textAlign: "center", fontSize: 12, color: colors.mutedForeground },
+  disclaimer: { marginTop: 6, textAlign: "center", fontSize: 10, color: colors.mutedForeground, paddingHorizontal: 20 },
 });

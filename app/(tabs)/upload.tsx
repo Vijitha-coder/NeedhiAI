@@ -1,15 +1,19 @@
 import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { CheckCircle2, FileText, UploadCloud, X } from "lucide-react-native";
-import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { CheckCircle2, FileText, UploadCloud, X, Image as ImageIcon, AlertCircle } from "lucide-react-native";
+import { useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View, ActivityIndicator, Alert } from "react-native";
 
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { PrimaryButton } from "@/components/FormControls";
 import { colors, gradients, radii, shadows } from "@/lib/theme";
+import { uploadContract } from "@/lib/api/contracts";
+import { ApiError } from "@/lib/api/client";
 
 type PickedFile = {
+  uri: string;
   name: string;
   size?: number;
   mimeType?: string;
@@ -17,54 +21,142 @@ type PickedFile = {
 
 export default function UploadScreen() {
   const [file, setFile] = useState<PickedFile | null>(null);
-  const [progress, setProgress] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!file) return;
-    setProgress(0);
-    const interval = setInterval(() => {
-      setProgress((value) => {
-        if (value >= 100) {
-          clearInterval(interval);
-          return 100;
+  async function pickDocument() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          "application/pdf",
+          "application/msword",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "image/jpeg",
+          "image/png",
+          "image/jpg",
+        ],
+        copyToCacheDirectory: true,
+      });
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        // Validate size 25MB
+        if (asset.size && asset.size > 25 * 1024 * 1024) {
+          setError("File too large. Maximum 25 MB allowed.");
+          return;
         }
-        return value + 6;
-      });
-    }, 120);
-    return () => clearInterval(interval);
-  }, [file]);
+        setFile({
+          uri: asset.uri,
+          name: asset.name,
+          size: asset.size,
+          mimeType: asset.mimeType ?? "application/pdf",
+        });
+        setError(null);
+      }
+    } catch (e: any) {
+      setError(e.message || "Failed to pick document");
+    }
+  }
 
-  async function pickFile() {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
-      copyToCacheDirectory: true,
-    });
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      setFile({
-        name: asset.name,
-        size: asset.size,
-        mimeType: asset.mimeType ?? undefined,
+  async function pickImage() {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        setError("Permission to access photos is required");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
       });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        if (asset.fileSize && asset.fileSize > 25 * 1024 * 1024) {
+          setError("Image too large. Maximum 25 MB allowed.");
+          return;
+        }
+        setFile({
+          uri: asset.uri,
+          name: asset.fileName || `image_${Date.now()}.jpg`,
+          size: asset.fileSize,
+          mimeType: asset.mimeType || "image/jpeg",
+        });
+        setError(null);
+      }
+    } catch (e: any) {
+      setError(e.message || "Failed to pick image");
+    }
+  }
+
+  async function handleUploadAndAnalyze() {
+    if (!file) return;
+
+    setUploading(true);
+    setError(null);
+
+    try {
+      // Map mimeType properly
+      let mime = file.mimeType || "application/pdf";
+      if (file.name.toLowerCase().endsWith(".pdf") && !mime.includes("pdf")) mime = "application/pdf";
+      if (file.name.toLowerCase().endsWith(".docx")) mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      if (file.name.toLowerCase().endsWith(".jpg") || file.name.toLowerCase().endsWith(".jpeg")) mime = "image/jpeg";
+      if (file.name.toLowerCase().endsWith(".png")) mime = "image/png";
+
+      const uploaded = await uploadContract(file.uri, file.name, mime, file.name);
+
+      // Navigate to processing with contractId
+      router.push({
+        pathname: "/processing",
+        params: { contractId: uploaded.id, title: uploaded.title },
+      } as any);
+    } catch (e: any) {
+      console.log("Upload error:", e);
+      if (e instanceof ApiError) {
+        if (e.status === 0) {
+          setError("Cannot connect to backend. Ensure backend is running and URL is correct. Check lib/config.ts");
+        } else {
+          setError(e.message);
+        }
+      } else {
+        setError(e.message || "Upload failed");
+      }
+    } finally {
+      setUploading(false);
     }
   }
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <ScreenHeader title="Upload contract" subtitle="PDF or DOCX up to 25 MB" back="/(tabs)/home" />
+      <ScreenHeader title="Upload contract" subtitle="PDF, DOCX, JPG, PNG up to 25 MB" back="/(tabs)/home" />
+
+      {error && (
+        <View style={styles.errorBox}>
+          <AlertCircle size={16} color={colors.destructive} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
 
       {!file ? (
-        <Pressable onPress={pickFile} style={styles.dropzone}>
-          <LinearGradient colors={gradients.primary} style={styles.dropIcon}>
-            <UploadCloud size={36} color={colors.primaryForeground} />
-          </LinearGradient>
-          <Text style={styles.dropTitle}>Choose your file</Text>
-          <Text style={styles.dropSubtitle}>Tap to browse PDF or DOCX</Text>
-          <View style={styles.chooseBtn}>
-            <Text style={styles.chooseBtnText}>Choose file</Text>
-          </View>
-          <Text style={styles.secureNote}>Encrypted in transit. Deleted after analysis.</Text>
-        </Pressable>
+        <>
+          <Pressable onPress={pickDocument} style={styles.dropzone}>
+            <LinearGradient colors={gradients.primary} style={styles.dropIcon}>
+              <UploadCloud size={36} color={colors.primaryForeground} />
+            </LinearGradient>
+            <Text style={styles.dropTitle}>Choose your file</Text>
+            <Text style={styles.dropSubtitle}>Tap to browse PDF, DOCX, or images</Text>
+            <View style={styles.chooseBtn}>
+              <Text style={styles.chooseBtnText}>Choose file</Text>
+            </View>
+            <Text style={styles.secureNote}>Encrypted in transit. Real OCR + AI analysis.</Text>
+          </Pressable>
+
+          <Pressable onPress={pickImage} style={styles.imageOption}>
+            <ImageIcon size={20} color={colors.primary} />
+            <Text style={styles.imageOptionText}>Or pick an image from gallery</Text>
+          </Pressable>
+        </>
       ) : (
         <View style={styles.fileCard}>
           <View style={styles.fileRow}>
@@ -72,47 +164,49 @@ export default function UploadScreen() {
               <FileText size={24} color={colors.primary} />
             </View>
             <View style={styles.fileMeta}>
-              <Text style={styles.fileName} numberOfLines={1}>{file.name}</Text>
+              <Text style={styles.fileName} numberOfLines={1}>
+                {file.name}
+              </Text>
               <Text style={styles.fileSize}>
                 {file.size ? `${(file.size / 1024).toFixed(1)} KB` : "Document"} · {file.mimeType ?? "document"}
               </Text>
             </View>
-            <Pressable onPress={() => setFile(null)} style={styles.removeBtn}>
+            <Pressable onPress={() => setFile(null)} style={styles.removeBtn} disabled={uploading}>
               <X size={16} color={colors.foreground} />
             </Pressable>
           </View>
 
-          <View style={styles.progressWrap}>
-            <View style={styles.progressLabels}>
-              <Text style={styles.progressLabel}>{progress < 100 ? "Uploading…" : "Ready to analyze"}</Text>
-              <Text style={styles.progressValue}>{progress}%</Text>
+          {uploading ? (
+            <View style={styles.uploadingRow}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={styles.uploadingText}>Uploading & extracting text...</Text>
             </View>
-            <View style={styles.progressTrack}>
-              <LinearGradient colors={gradients.primary} style={[styles.progressFill, { width: `${progress}%` }]} />
-            </View>
-          </View>
-
-          {progress >= 100 ? (
+          ) : (
             <View style={styles.completeRow}>
               <CheckCircle2 size={16} color={colors.success} />
-              <Text style={styles.completeText}>Upload complete</Text>
+              <Text style={styles.completeText}>Ready to analyze with real AI pipeline</Text>
             </View>
-          ) : null}
+          )}
 
-          <PrimaryButton
-            label="Analyze with AI"
-            disabled={progress < 100}
-            onPress={() => router.push("/processing")}
-          />
+          <PrimaryButton label={uploading ? "Uploading..." : "Analyze with AI"} onPress={handleUploadAndAnalyze} />
+          <Text style={styles.hintText}>This will run OCR (if needed), chunking, embeddings, RAG & LLM analysis</Text>
         </View>
       )}
 
       <View style={styles.checklist}>
-        <Text style={styles.checklistTitle}>What NeedhiAI checks</Text>
+        <Text style={styles.checklistTitle}>What NeedhiAI checks (Real Analysis)</Text>
         <Text style={styles.checklistItem}>✓ Auto-renewal & termination traps</Text>
         <Text style={styles.checklistItem}>✓ Hidden fees and price escalations</Text>
         <Text style={styles.checklistItem}>✓ Liability caps & indemnity risks</Text>
         <Text style={styles.checklistItem}>✓ Data & IP ownership</Text>
+        <Text style={styles.checklistItem}>✓ Non-compete & confidentiality</Text>
+        <Text style={styles.checklistItem}>✓ Missing important clauses</Text>
+      </View>
+
+      <View style={styles.disclaimer}>
+        <Text style={styles.disclaimerText}>
+          Disclaimer: Analysis is AI-generated for informational purposes. Not legal advice. Consult a qualified lawyer for high-risk decisions. Backend must be running for real analysis.
+        </Text>
       </View>
     </ScrollView>
   );
@@ -150,6 +244,20 @@ const styles = StyleSheet.create({
   },
   chooseBtnText: { color: colors.primaryForeground, fontSize: 14, fontWeight: "500" },
   secureNote: { marginTop: 16, fontSize: 11, color: colors.mutedForeground },
+  imageOption: {
+    marginTop: 16,
+    marginHorizontal: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingVertical: 14,
+  },
+  imageOptionText: { fontSize: 14, color: colors.foreground, fontWeight: "500" },
   fileCard: {
     marginHorizontal: 20,
     borderRadius: radii.xl,
@@ -180,14 +288,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  progressWrap: { gap: 6 },
-  progressLabels: { flexDirection: "row", justifyContent: "space-between" },
-  progressLabel: { fontSize: 12, color: colors.mutedForeground },
-  progressValue: { fontSize: 12, fontWeight: "500", color: colors.foreground },
-  progressTrack: { height: 8, borderRadius: 4, backgroundColor: colors.secondary, overflow: "hidden" },
-  progressFill: { height: "100%", borderRadius: 4 },
+  uploadingRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  uploadingText: { fontSize: 13, color: colors.mutedForeground },
   completeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  completeText: { fontSize: 14, color: colors.success },
+  completeText: { fontSize: 13, color: colors.success },
+  hintText: { fontSize: 11, color: colors.mutedForeground, textAlign: "center" },
   checklist: {
     marginTop: 24,
     marginHorizontal: 20,
@@ -205,4 +310,26 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   checklistItem: { marginTop: 8, fontSize: 14, color: colors.foreground },
+  errorBox: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: "rgba(220,76,76,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(220,76,76,0.3)",
+    borderRadius: radii.md,
+    padding: 12,
+  },
+  errorText: { flex: 1, fontSize: 13, color: colors.destructive, lineHeight: 18 },
+  disclaimer: {
+    marginTop: 16,
+    marginHorizontal: 20,
+    padding: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  disclaimerText: { fontSize: 11, color: colors.mutedForeground, lineHeight: 16 },
 });

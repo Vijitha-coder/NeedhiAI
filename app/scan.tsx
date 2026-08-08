@@ -1,21 +1,105 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { Camera, Check, ImageIcon, RotateCcw, Zap } from "lucide-react-native";
+import { Camera, Check, ImageIcon, RotateCcw, Zap, AlertCircle } from "lucide-react-native";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, Image, ActivityIndicator } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { colors, gradients, radii, shadows } from "@/lib/theme";
+import { uploadContract } from "@/lib/api/contracts";
+import { ApiError } from "@/lib/api/client";
 
 export default function ScanScreen() {
-  const [captured, setCaptured] = useState(false);
+  const [capturedUri, setCapturedUri] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function takePhoto() {
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        setError("Camera permission required to scan documents");
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setCapturedUri(result.assets[0].uri);
+        setError(null);
+      }
+    } catch (e: any) {
+      setError(e.message || "Failed to take photo");
+    }
+  }
+
+  async function pickFromGallery() {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        setError("Gallery permission required");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setCapturedUri(result.assets[0].uri);
+        setError(null);
+      }
+    } catch (e: any) {
+      setError(e.message || "Failed to pick image");
+    }
+  }
+
+  async function analyze() {
+    if (!capturedUri) return;
+
+    setUploading(true);
+    setError(null);
+
+    try {
+      const fileName = `scan_${Date.now()}.jpg`;
+      const uploaded = await uploadContract(capturedUri, fileName, "image/jpeg", fileName);
+
+      router.push({
+        pathname: "/processing",
+        params: { contractId: uploaded.id, title: uploaded.title },
+      } as any);
+    } catch (e: any) {
+      console.log("Scan upload error:", e);
+      if (e instanceof ApiError && e.status === 0) {
+        setError("Backend unavailable. Ensure server is running and backend URL is configured correctly.");
+      } else {
+        setError(e.message || "Upload failed");
+      }
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <ScreenHeader title="Scan document" subtitle="Align the page within the frame" back="/(tabs)/home" />
+      <ScreenHeader title="Scan document" subtitle="Real camera → OCR → AI analysis" back="/(tabs)/home" />
+
+      {error && (
+        <View style={styles.errorBox}>
+          <AlertCircle size={16} color={colors.destructive} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
 
       <View style={styles.preview}>
-        {!captured ? (
+        {!capturedUri ? (
           <>
             <LinearGradient colors={gradients.hero} style={StyleSheet.absoluteFill} />
             <View style={styles.frame}>
@@ -23,54 +107,73 @@ export default function ScanScreen() {
               <View style={[styles.corner, styles.cornerTR]} />
               <View style={[styles.corner, styles.cornerBL]} />
               <View style={[styles.corner, styles.cornerBR]} />
+              <Text style={styles.frameHint}>Align document within frame</Text>
             </View>
             <View style={styles.badge}>
               <Zap size={12} color={colors.gold} />
-              <Text style={styles.badgeText}>Auto edge detect</Text>
+              <Text style={styles.badgeText}>Real OCR enabled</Text>
             </View>
           </>
         ) : (
           <View style={styles.captured}>
-            <View style={styles.pageMock}>
-              <View style={[styles.line, { width: "50%" }]} />
-              <View style={styles.line} />
-              <View style={[styles.line, { width: "92%" }]} />
-              <View style={[styles.line, { width: "84%" }]} />
-              <View style={{ height: 12 }} />
-              <View style={styles.line} />
-              <View style={[styles.line, { width: "76%" }]} />
-              <View style={[styles.line, { width: "88%" }]} />
-            </View>
+            <Image source={{ uri: capturedUri }} style={styles.capturedImage} resizeMode="contain" />
           </View>
         )}
       </View>
 
-      {!captured ? (
+      {!capturedUri ? (
         <View style={styles.controls}>
-          <Pressable style={styles.sideBtn}>
+          <Pressable style={styles.sideBtn} onPress={pickFromGallery}>
             <ImageIcon size={20} color={colors.foreground} />
           </Pressable>
-          <Pressable onPress={() => setCaptured(true)} style={styles.captureBtn}>
+          <Pressable onPress={takePhoto} style={styles.captureBtn}>
             <LinearGradient colors={gradients.primary} style={styles.captureInner}>
               <Camera size={24} color={colors.primaryForeground} />
             </LinearGradient>
           </Pressable>
-          <Pressable style={styles.sideBtn}>
+          <View style={[styles.sideBtn, { opacity: 0.3 }]}>
             <Zap size={20} color={colors.foreground} />
-          </Pressable>
+          </View>
         </View>
       ) : (
         <View style={styles.actions}>
-          <Pressable onPress={() => setCaptured(false)} style={styles.actionBtn}>
+          <Pressable onPress={() => setCapturedUri(null)} style={styles.actionBtn} disabled={uploading}>
             <RotateCcw size={16} color={colors.foreground} />
             <Text style={styles.actionText}>Retake</Text>
           </Pressable>
-          <Pressable onPress={() => router.push("/processing")} style={styles.analyzeBtn}>
-            <Check size={16} color={colors.primaryForeground} />
-            <Text style={styles.analyzeText}>Analyze</Text>
+          <Pressable onPress={analyze} style={styles.analyzeBtn} disabled={uploading}>
+            {uploading ? (
+              <>
+                <ActivityIndicator size="small" color={colors.primaryForeground} />
+                <Text style={styles.analyzeText}>Uploading...</Text>
+              </>
+            ) : (
+              <>
+                <Check size={16} color={colors.primaryForeground} />
+                <Text style={styles.analyzeText}>Analyze with Real AI</Text>
+              </>
+            )}
           </Pressable>
         </View>
       )}
+
+      <View style={styles.infoBox}>
+        <Text style={styles.infoTitle}>How scanning works (Real Pipeline)</Text>
+        <Text style={styles.infoText}>
+          1. Take photo of physical contract{"\n"}
+          2. Upload as JPG to FastAPI backend{"\n"}
+          3. Backend runs OCR (pytesseract) if needed{"\n"}
+          4. Text cleaned & chunked{"\n"}
+          5. Embeddings generated{"\n"}
+          6. Legal knowledge base searched (RAG){"\n"}
+          7. LLM analyzes & returns structured risks{"\n"}
+          8. Results stored in database
+        </Text>
+      </View>
+
+      <View style={styles.disclaimer}>
+        <Text style={styles.disclaimerText}>Requires Tesseract OCR installed on backend for image text extraction. Fallback will still work but with limited accuracy if OCR not available.</Text>
+      </View>
     </ScrollView>
   );
 }
@@ -91,6 +194,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  frameHint: { marginTop: 120, color: "rgba(255,255,255,0.6)", fontSize: 12 },
   corner: {
     position: "absolute",
     width: 24,
@@ -123,16 +227,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  pageMock: {
-    width: "75%",
-    height: "85%",
-    borderRadius: radii.md,
-    backgroundColor: colors.card,
-    padding: 16,
-    gap: 8,
-    ...shadows.card,
-  },
-  line: { height: 6, width: "100%", borderRadius: 3, backgroundColor: colors.secondary },
+  capturedImage: { width: "100%", height: "100%" },
   controls: {
     marginTop: 24,
     flexDirection: "row",
@@ -197,4 +292,29 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   analyzeText: { fontSize: 14, fontWeight: "500", color: colors.primaryForeground },
+  errorBox: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: "rgba(220,76,76,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(220,76,76,0.3)",
+    borderRadius: radii.md,
+    padding: 12,
+  },
+  errorText: { flex: 1, fontSize: 13, color: colors.destructive },
+  infoBox: {
+    marginTop: 24,
+    marginHorizontal: 20,
+    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  infoTitle: { fontSize: 12, fontWeight: "600", color: colors.foreground, marginBottom: 8, textTransform: "uppercase" },
+  infoText: { fontSize: 12, color: colors.mutedForeground, lineHeight: 18 },
+  disclaimer: { marginTop: 12, marginHorizontal: 20, padding: 10, backgroundColor: colors.surface, borderRadius: radii.md },
+  disclaimerText: { fontSize: 10, color: colors.mutedForeground, lineHeight: 14 },
 });

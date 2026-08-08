@@ -26,8 +26,22 @@
     },
     "plugins": [
       "expo-router",
-      "expo-asset"
+      "expo-asset",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow NeedhiAI to access your photos to upload contracts",
+          "cameraPermission": "Allow NeedhiAI to use camera to scan contracts"
+        }
+      ]
     ],
+    "extra": {
+      "backendUrl": "http://10.0.2.2:8000",
+      "eas": {
+        "projectId": "needhiai-legalisec"
+      }
+    },
     "experiments": {
       "typedRoutes": true
     }

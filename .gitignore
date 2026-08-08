@@ -25,3 +25,27 @@ node_modules/
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+# Backend
+backend/venv/
+backend/__pycache__/
+backend/app/__pycache__/
+backend/*.db
+backend/*.db-journal
+backend/uploads/
+backend/chroma_data/
+backend/.env
+backend/needhiai.db
+backend/test_needhiai.db
+backend/chroma.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.venv/
+venv/
+
+# Knowledge base - keep README but ignore generated
+knowledge_base/*.pyc

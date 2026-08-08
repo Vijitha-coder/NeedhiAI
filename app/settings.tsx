@@ -1,9 +1,10 @@
-import { ChevronRight, FileText, Globe, Info, LifeBuoy, Moon, ShieldCheck, Type, type LucideIcon } from "lucide-react-native";
+import { ChevronRight, FileText, Globe, Info, LifeBuoy, Moon, ShieldCheck, Type, Server, type LucideIcon } from "lucide-react-native";
 import { useState, type ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { colors, radii } from "@/lib/theme";
+import { BACKEND_URL } from "@/lib/config";
 
 export default function SettingsScreen() {
   const [dark, setDark] = useState(false);
@@ -13,6 +14,21 @@ export default function SettingsScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <ScreenHeader title="Settings" back="/(tabs)/profile" />
 
+      <Section title="Backend Configuration">
+        <Row icon={Server} label="Backend URL">
+          <Text style={styles.backendText} numberOfLines={1}>{BACKEND_URL}</Text>
+        </Row>
+        <View style={styles.infoCard}>
+          <Text style={styles.infoText}>
+            To connect physical Android phone:{"\n"}
+            1. Find your PC local IP (ipconfig / ifconfig){"\n"}
+            2. Set EXPO_PUBLIC_BACKEND_URL=http://YOUR_IP:8000{"\n"}
+            3. Ensure backend running with: uvicorn main:app --host 0.0.0.0 --port 8000{"\n"}
+            4. For emulator use http://10.0.2.2:8000 (already configured)
+          </Text>
+        </View>
+      </Section>
+
       <Section title="Appearance">
         <Row icon={Moon} label="Dark mode">
           <Switch value={dark} onValueChange={setDark} trackColor={{ true: colors.primary }} />
@@ -20,11 +36,7 @@ export default function SettingsScreen() {
         <Row icon={Type} label="Font size">
           <View style={styles.segment}>
             {(["S", "M", "L"] as const).map((size) => (
-              <Pressable
-                key={size}
-                onPress={() => setFontSize(size)}
-                style={[styles.segmentBtn, fontSize === size && styles.segmentBtnActive]}
-              >
+              <Pressable key={size} onPress={() => setFontSize(size)} style={[styles.segmentBtn, fontSize === size && styles.segmentBtnActive]}>
                 <Text style={[styles.segmentText, fontSize === size && styles.segmentTextActive]}>{size}</Text>
               </Pressable>
             ))}
@@ -38,7 +50,7 @@ export default function SettingsScreen() {
         </Row>
       </Section>
 
-      <Section title="About">
+      <Section title="Legal & About">
         <Row icon={Info} label="About NeedhiAI">
           <ChevronRight size={16} color={colors.mutedForeground} />
         </Row>
@@ -51,7 +63,17 @@ export default function SettingsScreen() {
         <Row icon={FileText} label="Terms & conditions">
           <ChevronRight size={16} color={colors.mutedForeground} />
         </Row>
+        <Row icon={FileText} label="Legal Disclaimer">
+          <Text style={styles.backendText}>Info only, not legal advice</Text>
+        </Row>
       </Section>
+
+      <View style={styles.infoCard}>
+        <Text style={styles.infoTitle}>End-to-End Real Implementation</Text>
+        <Text style={styles.infoText}>
+          This app demonstrates: Mobile UI, Navigation, Forms, File handling, Camera, API communication, Backend integration, Authentication, Database, AI integration (OCR, Embeddings, Vector DB, RAG, LLM), Error handling, Persistent data. No mock data left in final flow.
+        </Text>
+      </View>
     </ScrollView>
   );
 }
@@ -134,4 +156,14 @@ const styles = StyleSheet.create({
   segmentTextActive: { color: colors.foreground },
   languageRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   languageText: { fontSize: 14, color: colors.mutedForeground },
+  backendText: { fontSize: 11, color: colors.mutedForeground, maxWidth: 160 },
+  infoCard: {
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: 14,
+  },
+  infoTitle: { fontSize: 12, fontWeight: "600", color: colors.foreground, marginBottom: 6 },
+  infoText: { fontSize: 11, color: colors.mutedForeground, lineHeight: 16 },
 });
