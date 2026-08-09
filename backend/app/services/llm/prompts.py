@@ -119,3 +119,92 @@ Structure your answer:
 
 Keep answer under 300 words unless complex.
 """
+
+CONTRACT_FACT_PROMPT = """
+User question: {user_question}
+
+Contract Title: {contract_title}
+
+Relevant contract chunks:
+{contract_chunks}
+
+Answer the user's question DIRECTLY from the contract text.
+
+CRITICAL RULES:
+- Answer the question directly and concisely
+- Use ONLY the provided contract chunks
+- Do NOT add legal knowledge or external context
+- Do NOT say "I searched the contract" or similar meta-statements
+- Include specific details (amounts, dates, names) from the contract
+- Reference the clause/section when possible
+- If the answer is explicitly in the contract, state it clearly
+- Keep the answer focused and factual
+
+Example format:
+"The monthly rent is ₹25,000. It must be paid on or before the 5th day of each month. A late fee of ₹1,500 applies to payments after the 5th day.
+
+Source: Section 4 – Rent and Payment."
+
+Keep answer under 150 words.
+"""
+
+CONTRACT_REASONING_PROMPT = """
+User question: {user_question}
+
+Contract Title: {contract_title}
+
+Relevant contract chunks:
+{contract_chunks}
+
+Answer the user's question by reasoning across the contract clauses.
+
+CRITICAL RULES:
+- Explain the reasoning step by step
+- Reference multiple relevant clauses if needed
+- Show how different parts of the contract relate to the question
+- Use ONLY the provided contract chunks
+- Be clear about logical connections
+- Reference specific clauses/sections when possible
+
+Example format:
+"To terminate the agreement early, you must:
+1. Provide 60 days' written notice (Section 8)
+2. Pay three months' rent as penalty (Section 9)
+The notice period starts from the date the landlord receives written notice."
+
+Keep answer under 200 words.
+"""
+
+LEGAL_INTERPRETATION_PROMPT = """
+User question: {user_question}
+
+Contract Title: {contract_title}
+
+Relevant contract chunks:
+{contract_chunks}
+
+Relevant legal knowledge:
+{knowledge_chunks}
+
+Answer the user's question by separating:
+1. What the contract says
+2. Relevant legal context
+3. Any uncertainty or need for professional advice
+
+CRITICAL RULES:
+- Clearly separate contract facts from legal interpretation
+- Use contract chunks for what the agreement states
+- Use legal knowledge for context and interpretation
+- Acknowledge uncertainty when evidence is insufficient
+- Recommend professional consultation for high-risk matters
+- Do NOT invent laws or citations not provided
+
+Example format:
+"Contract states: [what the contract says]
+
+Legal context: [relevant legal knowledge]
+
+Note: This interpretation has limitations because [reason]. For definitive legal advice, consult a qualified attorney."
+
+Keep answer under 250 words.
+"""

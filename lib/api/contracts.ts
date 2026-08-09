@@ -105,13 +105,22 @@ export async function uploadContract(
 ): Promise<ContractUploadResponse> {
   const formData = new FormData();
 
-  // For React Native, file object needs uri, name, type
-  // @ts-ignore - React Native FormData file
-  formData.append("file", {
-    uri: fileUri,
-    name: fileName,
-    type: mimeType,
-  } as any);
+  // Handle file differently for web vs React Native
+  if (Platform.OS === "web") {
+    // On web, we need to convert the URI to a File object
+    const response = await fetch(fileUri);
+    const blob = await response.blob();
+    const file = new File([blob], fileName, { type: mimeType });
+    formData.append("file", file);
+  } else {
+    // For React Native, file object needs uri, name, type
+    // @ts-ignore - React Native FormData file
+    formData.append("file", {
+      uri: fileUri,
+      name: fileName,
+      type: mimeType,
+    } as any);
+  }
 
   if (title) {
     formData.append("title", title);

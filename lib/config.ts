@@ -11,13 +11,22 @@ import { Platform } from "react-native";
  */
 
 function getDefaultBackendUrl(): string {
+  // Force localhost:8000 for web platform
+  if (Platform.OS === "web") {
+    console.log('[Config] Web platform detected, forcing localhost:8000');
+    return "http://localhost:8000";
+  }
+
   // Check if running in Expo Go or dev
   const extra = (Constants.expoConfig?.extra || {}) as any;
 
+  console.log('[Config] Platform:', Platform.OS);
+  console.log('[Config] Constants.expoConfig:', Constants.expoConfig);
+  console.log('[Config] Extra config:', extra);
+
   // If explicit backendUrl in app.json extra
   if (extra.backendUrl) {
-    // On Android device physical, 10.0.2.2 won't work, need user to set IP
-    // We'll still respect the configured value but log hint
+    console.log('[Config] Using backendUrl from extra:', extra.backendUrl);
     return extra.backendUrl;
   }
 
@@ -27,14 +36,19 @@ function getDefaultBackendUrl(): string {
     // For physical device, user should set EXPO_PUBLIC_BACKEND_URL
     const envUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
     if (envUrl) return envUrl;
+    console.log('[Config] Using Android emulator URL');
     return "http://10.0.2.2:8000";
   }
 
   if (Platform.OS === "ios") {
-    return process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:8000";
+    const iosUrl = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:8000";
+    console.log('[Config] Using iOS URL:', iosUrl);
+    return iosUrl;
   }
 
-  return process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:8000";
+  const defaultUrl = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:8000";
+  console.log('[Config] Using default URL:', defaultUrl);
+  return defaultUrl;
 }
 
 export const BACKEND_URL = getDefaultBackendUrl();

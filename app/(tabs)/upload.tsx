@@ -4,7 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { CheckCircle2, FileText, UploadCloud, X, Image as ImageIcon, AlertCircle } from "lucide-react-native";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View, ActivityIndicator, Alert } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, ActivityIndicator, Alert, Platform } from "react-native";
 
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { PrimaryButton } from "@/components/FormControls";
@@ -26,6 +26,32 @@ export default function UploadScreen() {
 
   async function pickDocument() {
     try {
+      if (Platform.OS === "web") {
+        // Web: use hidden file input
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".pdf,.docx,.doc,.jpg,.jpeg,.png";
+        input.onchange = (e: any) => {
+          const file = e.target.files[0];
+          if (file) {
+            if (file.size > 25 * 1024 * 1024) {
+              setError("File too large. Maximum 25 MB allowed.");
+              return;
+            }
+            setFile({
+              uri: URL.createObjectURL(file),
+              name: file.name,
+              size: file.size,
+              mimeType: file.type,
+            });
+            setError(null);
+          }
+        };
+        input.click();
+        return;
+      }
+
+      // React Native: use expo-document-picker
       const result = await DocumentPicker.getDocumentAsync({
         type: [
           "application/pdf",
@@ -59,6 +85,32 @@ export default function UploadScreen() {
 
   async function pickImage() {
     try {
+      if (Platform.OS === "web") {
+        // Web: use hidden file input for images
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
+        input.onchange = (e: any) => {
+          const file = e.target.files[0];
+          if (file) {
+            if (file.size > 25 * 1024 * 1024) {
+              setError("Image too large. Maximum 25 MB allowed.");
+              return;
+            }
+            setFile({
+              uri: URL.createObjectURL(file),
+              name: file.name,
+              size: file.size,
+              mimeType: file.type,
+            });
+            setError(null);
+          }
+        };
+        input.click();
+        return;
+      }
+
+      // React Native: use expo-image-picker
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
         setError("Permission to access photos is required");
@@ -113,9 +165,13 @@ export default function UploadScreen() {
       } as any);
     } catch (e: any) {
       console.log("Upload error:", e);
+      console.log("Error status:", e.status);
+      console.log("Error data:", e.data);
       if (e instanceof ApiError) {
         if (e.status === 0) {
           setError("Cannot connect to backend. Ensure backend is running and URL is correct. Check lib/config.ts");
+        } else if (e.status === 422) {
+          setError(`Validation error: ${JSON.stringify(e.data)}`);
         } else {
           setError(e.message);
         }

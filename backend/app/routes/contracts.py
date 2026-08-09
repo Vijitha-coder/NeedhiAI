@@ -361,12 +361,20 @@ def chat_with_contract(
         print(f"Contract retrieval failed: {e}")
         contract_chunks = []
 
-    # Retrieve legal knowledge
-    try:
-        knowledge_chunks = query_knowledge_base(chat_request.message, n_results=3)
-    except Exception as e:
-        print(f"Knowledge retrieval failed: {e}")
-        knowledge_chunks = []
+    # Import question classification
+    from app.services.llm.llm_service import classify_question
+    
+    # Classify question to determine if we need legal knowledge
+    question_type = classify_question(chat_request.message, contract_chunks)
+    
+    # Only retrieve legal knowledge for interpretation questions
+    knowledge_chunks = []
+    if question_type == "LEGAL_INTERPRETATION":
+        try:
+            knowledge_chunks = query_knowledge_base(chat_request.message, n_results=3)
+        except Exception as e:
+            print(f"Knowledge retrieval failed: {e}")
+            knowledge_chunks = []
 
     # If no contract chunks from vector store, fallback to using cleaned_text chunks
     if not contract_chunks and contract.cleaned_text:
